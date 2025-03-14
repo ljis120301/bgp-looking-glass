@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BGP Looking Glass
 
-## Getting Started
+A modern web application that provides a global view of BGP (Border Gateway Protocol) routing information for any IP address. This tool helps network engineers, administrators, and curious users understand how their IP addresses are seen and reached across the internet.
 
-First, run the development server:
+## Features
+
+- 🌐 Global BGP route visualization
+- 🔍 Real-time IP address lookup
+- 🗺️ Worldwide route collector data
+- 🏷️ BGP community interpretation
+- 📊 Geographic distribution of routes
+- 🎨 Dark mode UI with intuitive design
+
+## API Integration
+
+This project uses the RIPE NCC Stat API, specifically:
+
+- `https://stat.ripe.net/data/bgp-state/data.json` - For fetching current BGP routing information
+- `https://stat.ripe.net/data/whats-my-ip/data.json` - For detecting user's public IP address
+
+No API key is required as these endpoints are publicly accessible.
+
+## Prerequisites
+
+Before running this project, make sure you have:
+
+- Node.js 16.x or higher
+- npm (Node Package Manager)
+
+## Installation
+
+1. Clone the repository:
+```bash
+git clone [your-repo-url]
+cd bgp-looking-glass
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+## Running the Project
+
+To run the project in development mode:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The application will be available at `http://localhost:3000`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+To build for production:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
 
-## Learn More
+## Project Structure
 
-To learn more about Next.js, take a look at the following resources:
+- `app/page.tsx` - Main application component with BGP lookup functionality
+- `app/layout.tsx` - Root layout component
+- Components are built using React and styled with Tailwind CSS
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Understanding the Output
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The tool provides:
+- Network paths showing how traffic reaches the target IP
+- BGP community information with explanations
+- Route collector locations and their observations
+- Geographic distribution of routing data
 
-## Deploy on Vercel
+## Contributing
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+[Your chosen license]
+
+## Acknowledgments
+
+- RIPE NCC for providing the BGP data API
+- Next.js and Vercel for the development framework
+- Tailwind CSS for styling
