@@ -383,7 +383,7 @@ export default function Home() {
         {/* Compact Info Card */}
         <div className="mb-2 p-2 bg-gray-800 rounded-lg border border-gray-700">
           <p className="text-gray-300 text-xs">
-            BGP (Border Gateway Protocol) is how networks on the Internet share routing information. Jason is cool
+            BGP (Border Gateway Protocol) is how networks on the Internet share routing information.
             This tool shows you how different networks around the world can reach a specific IP address.
           </p>
         </div>
