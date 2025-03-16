@@ -133,7 +133,7 @@ const getCollectorLocation = (sourceId: string) => {
   // Updated list of RIPE RIS collectors based on current documentation
   const locations: { [key: string]: { city: string, country: string, coordinates: [number, number] } } = {
     '00': { city: 'Amsterdam', country: 'NL', coordinates: [52.3676, 4.9041] },
-    '01': { city: 'London', country: 'UK', coordinates: [51.5074, -0.1278] },
+    '01': { city: 'London', country: 'GB', coordinates: [51.5074, -0.1278] },
     '02': { city: 'Paris', country: 'FR', coordinates: [48.8566, 2.3522] },
     '03': { city: 'Amsterdam-2', country: 'NL', coordinates: [52.3676, 4.9041] },
     '04': { city: 'Geneva', country: 'CH', coordinates: [46.2044, 6.1432] },
@@ -213,7 +213,7 @@ export default function Home() {
   const [defaultIpAddress, setDefaultIpAddress] = useState('');
   const [isNetworkToolsOpen, setIsNetworkToolsOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10; // Number of BGP entries per page
+  const itemsPerPage = 15; // Number of BGP entries per page
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
     asNumber: '',
@@ -508,8 +508,8 @@ export default function Home() {
               </span>
             </div>
             
-            <div className="mb-2 overflow-x-auto">
-              <div className="flex items-center gap-1 pb-1 min-w-max">
+            <div className="mb-2">
+              <div className="flex flex-wrap items-center gap-2 mb-2">
                 <span className="text-gray-400 text-[10px]">Filter:</span>
                 <span 
                   onClick={() => setSelectedCountry(null)}
@@ -525,61 +525,52 @@ export default function Home() {
                   <span
                     key={country}
                     onClick={() => setSelectedCountry(country === selectedCountry ? null : country)}
-                    className={`cursor-pointer px-2 py-0.5 rounded-full text-[10px] transition-colors ${
+                    className={`cursor-pointer px-2 py-0.5 rounded-full text-[10px] transition-colors flex items-center gap-1.5 ${
                       country === selectedCountry 
                         ? 'bg-blue-600 text-blue-100' 
                         : 'bg-blue-600/30 text-blue-300 hover:bg-blue-600/50'
                     }`}
                   >
+                    <img 
+                      src={`https://flagcdn.com/w20/${country.toLowerCase() === 'gb' ? 'gb' : country.toLowerCase()}.png`}
+                      alt={country}
+                      className="w-3 h-2 rounded-[1px] object-cover"
+                    />
                     {country} ({bgpInfo.data.bgp_state.filter(entry => 
                       getCollectorLocation(entry.source_id).country === country
                     ).length})
                   </span>
                 ))}
               </div>
-
-              <div className="flex items-center gap-2 mt-2">
-                <Button
-                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                  variant="secondary"
-                  size="sm"
-                  className="text-[10px] h-[26px]"
-                >
-                  {showAdvancedFilters ? 'Hide Advanced Filters' : 'Show Advanced Filters'}
-                </Button>
+              <div className="mt-2">
+                <AdvancedFilters
+                  filters={advancedFilters}
+                  onChange={setAdvancedFilters}
+                  onSaveFilter={(name) => {
+                    const newFilter = {
+                      id: Date.now().toString(),
+                      name,
+                      filters: { ...advancedFilters }
+                    };
+                    setAdvancedFilters(prev => ({
+                      ...prev,
+                      savedFilters: [...prev.savedFilters, newFilter]
+                    }));
+                  }}
+                  onLoadFilter={(filter) => {
+                    setAdvancedFilters({
+                      ...filter.filters,
+                      savedFilters: advancedFilters.savedFilters
+                    });
+                  }}
+                  onDeleteFilter={(id) => {
+                    setAdvancedFilters(prev => ({
+                      ...prev,
+                      savedFilters: prev.savedFilters.filter(f => f.id !== id)
+                    }));
+                  }}
+                />
               </div>
-
-              {showAdvancedFilters && (
-                <div className="mt-2">
-                  <AdvancedFilters
-                    filters={advancedFilters}
-                    onChange={setAdvancedFilters}
-                    onSaveFilter={(name) => {
-                      const newFilter = {
-                        id: Date.now().toString(),
-                        name,
-                        filters: { ...advancedFilters }
-                      };
-                      setAdvancedFilters(prev => ({
-                        ...prev,
-                        savedFilters: [...prev.savedFilters, newFilter]
-                      }));
-                    }}
-                    onLoadFilter={(filter) => {
-                      setAdvancedFilters({
-                        ...filter.filters,
-                        savedFilters: advancedFilters.savedFilters
-                      });
-                    }}
-                    onDeleteFilter={(id) => {
-                      setAdvancedFilters(prev => ({
-                        ...prev,
-                        savedFilters: prev.savedFilters.filter(f => f.id !== id)
-                      }));
-                    }}
-                  />
-                </div>
-              )}
             </div>
             
             <BGPResultsTable 
