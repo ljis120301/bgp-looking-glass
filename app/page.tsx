@@ -1,6 +1,30 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import PingTool from '../components/PingTool';
+import TracerouteTool from '../components/TracerouteTool';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
+import { AdvancedFilters, BGPResultsTable } from '@/components/BGPComponents';
 
 // Update interface to match the bgp-state API response structure
 interface BGPEntry {
@@ -23,6 +47,22 @@ interface BGPResponse {
   };
   query_id: string;
   server_id: string;
+}
+
+// Add these interfaces near the top with other interfaces
+interface SavedFilter {
+  id: string;
+  name: string;
+  filters: AdvancedFilters;
+}
+
+interface AdvancedFilters {
+  asNumber: string;
+  prefix: string;
+  minPathLength: number;
+  maxPathLength: number;
+  communityTags: string[];
+  savedFilters: SavedFilter[];
 }
 
 // Add a helper function to format IP addresses
@@ -138,6 +178,31 @@ const getUniqueCountries = (routes: BGPEntry[]) => {
   return Array.from(countries).sort();
 };
 
+// Add this helper function near your other helpers
+const getPageRange = (currentPage: number, totalPages: number) => {
+  if (totalPages <= 5) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+
+  if (currentPage <= 3) {
+    return [1, 2, 3, 4, 'ellipsis', totalPages];
+  }
+
+  if (currentPage >= totalPages - 2) {
+    return [1, 'ellipsis', totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+  }
+
+  return [
+    1,
+    'ellipsis',
+    currentPage - 1,
+    currentPage,
+    currentPage + 1,
+    'ellipsis',
+    totalPages
+  ];
+};
+
 export default function Home() {
   const [ipAddress, setIpAddress] = useState('');
   const [bgpInfo, setBgpInfo] = useState<BGPResponse | null>(null);
@@ -146,6 +211,18 @@ export default function Home() {
   const [instruction, setInstruction] = useState<string | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [defaultIpAddress, setDefaultIpAddress] = useState('');
+  const [isNetworkToolsOpen, setIsNetworkToolsOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10; // Number of BGP entries per page
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
+    asNumber: '',
+    prefix: '',
+    minPathLength: 0,
+    maxPathLength: 0,
+    communityTags: [],
+    savedFilters: []
+  });
 
   const handleLookup = async () => {
     if (!ipAddress) {
@@ -241,385 +318,355 @@ export default function Home() {
     getPublicIP();
   }, []); // Empty dependency array means this runs once when component mounts
 
+  // Add this helper function
+  const paginateData = (data: BGPEntry[], page: number, itemsPerPage: number) => {
+    const startIndex = (page - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return data.slice(startIndex, endIndex);
+  };
+
+  // Add this function to filter BGP entries
+  const filterBGPEntries = (entries: BGPEntry[], filters: AdvancedFilters) => {
+    return entries.filter(entry => {
+      // Filter by AS number
+      if (filters.asNumber && !entry.path.includes(parseInt(filters.asNumber))) {
+        return false;
+      }
+
+      // Filter by prefix
+      if (filters.prefix && !entry.target_prefix.includes(filters.prefix)) {
+        return false;
+      }
+
+      // Filter by path length
+      if (filters.minPathLength > 0 && entry.path.length < filters.minPathLength) {
+        return false;
+      }
+      if (filters.maxPathLength > 0 && entry.path.length > filters.maxPathLength) {
+        return false;
+      }
+
+      // Filter by community tags
+      if (filters.communityTags.length > 0) {
+        const entryCommunities = entry.community.map(c => c.toString());
+        if (!filters.communityTags.some(tag => entryCommunities.includes(tag))) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  };
+
+  // Add this useEffect near other effects
+  useEffect(() => {
+    // Load saved filters from localStorage
+    const savedFilters = localStorage.getItem('bgp-saved-filters');
+    if (savedFilters) {
+      setAdvancedFilters(prev => ({
+        ...prev,
+        savedFilters: JSON.parse(savedFilters)
+      }));
+    }
+  }, []);
+
+  // Add this useEffect to save filters when they change
+  useEffect(() => {
+    localStorage.setItem('bgp-saved-filters', JSON.stringify(advancedFilters.savedFilters));
+  }, [advancedFilters.savedFilters]);
+
   return (
-    <div className="min-h-screen p-4 sm:p-8 bg-gray-900 text-gray-100">
-      <h1 className="text-3xl font-bold mb-6 text-blue-400">BGP Looking Glass</h1>
+    <div className="min-h-screen flex flex-col bg-gray-900 text-gray-100">
+      <Header />
       
-      <div className="mb-4 p-4 bg-gray-800 rounded-lg border border-gray-700">
-        <p className="text-gray-300">
-          BGP (Border Gateway Protocol) is how networks on the Internet share routing information.
-          This tool shows you how different networks around the world can reach a specific IP address.
-        </p>
-      </div>
-
-      <div className="mb-4 p-4 bg-gray-800 rounded-lg border border-gray-700">
-        <h3 className="text-lg font-semibold text-blue-400 mb-2">About This Looking Glass</h3>
-        <div className="text-gray-300 space-y-2">
-          <p>This tool shows a global view of BGP routes from multiple networks worldwide using RIPE's Route Information Service (RIS). 
-          Unlike single-network looking glasses (like Lumen's or AT&T's), which show only their internal view, this tool shows how the IP address is seen from many different perspectives around the world.</p>
-          
-          <div className="mt-4 grid grid-cols-2 gap-4">
-            <div className="p-3 bg-gray-700/50 rounded-lg">
-              <h4 className="font-semibold text-blue-300">This Global Looking Glass</h4>
-              <ul className="list-disc list-inside text-sm mt-2">
-                <li>Shows routes from many networks</li>
-                <li>Provides global visibility</li>
-                <li>Multiple geographic perspectives</li>
-                <li>More comprehensive view</li>
-              </ul>
-            </div>
-            <div className="p-3 bg-gray-700/50 rounded-lg">
-              <h4 className="font-semibold text-blue-300">Single-Network Looking Glass</h4>
-              <ul className="list-disc list-inside text-sm mt-2">
-                <li>Shows routes from one network</li>
-                <li>Single network's perspective</li>
-                <li>Often one geographic location</li>
-                <li>More detailed internal view</li>
-              </ul>
-            </div>
-          </div>
+      <main className="flex-1 p-2 sm:p-4">
+        {/* Compact Info Card */}
+        <div className="mb-2 p-2 bg-gray-800 rounded-lg border border-gray-700">
+          <p className="text-gray-300 text-xs">
+            BGP (Border Gateway Protocol) is how networks on the Internet share routing information.
+            This tool shows you how different networks around the world can reach a specific IP address.
+          </p>
         </div>
-      </div>
 
-      <div className="mb-6 flex flex-col sm:flex-row gap-2">
-        <input
-          type="text"
-          value={ipAddress}
-          onChange={(e) => setIpAddress(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !isLoading) {
-              handleLookup();
-            }
-          }}
-          placeholder={defaultIpAddress || "Enter IP address (e.g., 1.1.1.1)"}
-          className="bg-gray-800 border border-gray-700 p-3 rounded-lg text-gray-100 w-full sm:w-72 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <div className="flex gap-2">
-          <button 
-            onClick={handleLookup} 
-            disabled={isLoading}
-            className={`p-3 rounded-lg flex-1 sm:flex-none ${
-              isLoading 
-                ? 'bg-gray-700 cursor-not-allowed' 
-                : 'bg-blue-600 hover:bg-blue-700'
-            } text-white font-semibold transition-colors`}
-          >
-            {isLoading ? 'Loading...' : 'Lookup'}
-          </button>
-          {defaultIpAddress && ipAddress !== defaultIpAddress && (
-            <button
-              onClick={() => {
-                setIpAddress(defaultIpAddress);
+        {/* Compact Input Section */}
+        <div className="mb-3 flex flex-col sm:flex-row gap-1">
+          <input
+            type="text"
+            value={ipAddress}
+            onChange={(e) => setIpAddress(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !isLoading) {
                 handleLookup();
-              }}
-              className="p-3 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 font-semibold transition-colors flex items-center gap-2 flex-1 sm:flex-none justify-center"
+              }
+            }}
+            placeholder={defaultIpAddress || "Enter IP address (e.g., 1.1.1.1)"}
+            className="bg-gray-800 border border-gray-700 px-2 rounded-lg text-gray-100 text-[10px] w-full sm:w-64 focus:outline-none focus:ring-1 focus:ring-blue-500 h-[26px]"
+          />
+          <div className="flex gap-1">
+            <Button 
+              onClick={handleLookup} 
+              disabled={isLoading}
+              variant="default"
+              size="sm"
+              className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white text-[10px] px-2 py-1 h-[26px]"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-              </svg>
-              <span className="hidden sm:inline">Reset to My IP</span>
-              <span className="inline sm:hidden">My IP</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {error && (
-        <div className="text-red-400 mb-4 p-3 bg-red-900/30 rounded-lg">
-          {error}
-        </div>
-      )}
-
-      {instruction && (
-        <div className="text-blue-300 mb-4 p-3 bg-blue-900/30 rounded-lg border border-blue-800/50">
-          {instruction}
-        </div>
-      )}
-
-      {bgpInfo?.data?.bgp_state && bgpInfo.data.bgp_state.length > 0 ? (
-        <div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 mb-4">
-            <h2 className="text-xl font-semibold text-blue-400">BGP Routes for {ipAddress}</h2>
-            <span className="bg-blue-600/30 text-blue-300 px-3 py-1 rounded-full text-sm whitespace-nowrap">
-              {bgpInfo.data.bgp_state.filter(entry => 
-                !selectedCountry || getCollectorLocation(entry.source_id).country === selectedCountry
-              ).length} routes found
-              {selectedCountry && ` in ${selectedCountry}`}
-              <InfoTooltip text={
-                selectedCountry 
-                  ? `Showing routes observed by collectors in ${selectedCountry}` 
-                  : "The number of different paths that networks use to reach this IP address. More routes generally means better global connectivity."
-              } />
-            </span>
-          </div>
-          
-          <div className="mb-4 flex items-center gap-2">
-            <span className="text-gray-400">Data collected from</span>
-            <span className="bg-blue-600/30 text-blue-300 px-3 py-1 rounded-full text-sm">
-              {new Set(bgpInfo.data.bgp_state.map(entry => entry.source_id.split('-')[0])).size} route collectors
-            </span>
-            <span className="text-gray-400">worldwide</span>
-            <InfoTooltip text="Route collectors are servers that gather BGP routing information from many different networks. More collectors means better global visibility of how the IP address is reached from different parts of the world." />
-          </div>
-          
-          <div className="mb-4 overflow-x-auto">
-            <div className="flex items-center gap-2 pb-2 min-w-max">
-              <span className="text-gray-400 whitespace-nowrap">Filter by country:</span>
-              <span 
-                onClick={() => setSelectedCountry(null)}
-                className={`cursor-pointer px-3 py-1 rounded-full text-sm transition-colors whitespace-nowrap ${
-                  selectedCountry === null 
-                    ? 'bg-blue-600 text-blue-100' 
-                    : 'bg-blue-600/30 text-blue-300 hover:bg-blue-600/50'
-                }`}
+              {isLoading ? 'Loading...' : 'BGP Lookup'}
+            </Button>
+            {defaultIpAddress && ipAddress !== defaultIpAddress && (
+              <Button
+                onClick={() => {
+                  setIpAddress(defaultIpAddress);
+                  handleLookup();
+                }}
+                variant="secondary"
+                size="sm"
+                className="flex-1 sm:flex-none gap-1 text-[10px] px-2 py-1 h-[26px]"
               >
-                All
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                </svg>
+                <span className="hidden sm:inline">Reset to My IP</span>
+                <span className="inline sm:hidden">My IP</span>
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Network Tools Section - Increased height */}
+        <div className="relative mb-2">
+          <button
+            onClick={() => setIsNetworkToolsOpen(!isNetworkToolsOpen)}
+            className="flex items-center gap-1 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            <h2>Network Tools</h2>
+            <svg 
+              className={`w-2.5 h-2.5 transition-transform ${isNetworkToolsOpen ? 'rotate-180' : ''}`} 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          
+          <div className={`overflow-hidden transition-all duration-300 ${
+            isNetworkToolsOpen ? 'max-h-[180px] opacity-100 mt-2' : 'max-h-0 opacity-0'
+          }`}>
+            <div className="bg-gray-800 rounded-lg border border-gray-700 p-0.5">
+              <Tabs defaultValue="ping" className="w-full">
+                <TabsList className="bg-gray-700/50 border-0 h-7 w-full flex justify-center gap-1 p-1">
+                  <TabsTrigger 
+                    value="ping"
+                    className="data-[state=active]:bg-gray-600 data-[state=active]:text-blue-400 text-xs h-full px-6 font-medium min-w-[100px]"
+                  >
+                    Ping
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="traceroute"
+                    className="data-[state=active]:bg-gray-600 data-[state=active]:text-blue-400 text-xs h-full px-6 font-medium min-w-[100px]"
+                  >
+                    Traceroute
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="ping" className="mt-0.5">
+                  <PingTool ipAddress={ipAddress} />
+                </TabsContent>
+                <TabsContent value="traceroute" className="mt-0.5">
+                  <TracerouteTool defaultEndpoint="bgp.whoisjason.me" />
+                </TabsContent>
+              </Tabs>
+            </div>
+          </div>
+        </div>
+
+        {/* Status Messages */}
+        {error && (
+          <div className="text-red-400 mb-2 p-2 text-xs bg-red-900/30 rounded-lg">
+            {error}
+          </div>
+        )}
+
+        {instruction && (
+          <div className="text-blue-300 mb-2 p-2 text-xs bg-blue-900/30 rounded-lg border border-blue-800/50">
+            {instruction}
+          </div>
+        )}
+
+        {bgpInfo?.data?.bgp_state && bgpInfo.data.bgp_state.length > 0 ? (
+          <div>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <h2 className="text-xs font-semibold text-blue-400">BGP Routes for {ipAddress}</h2>
+              <span className="bg-blue-600/30 text-blue-300 px-2 py-0.5 rounded-full text-[10px]">
+                {bgpInfo.data.bgp_state.filter(entry => 
+                  !selectedCountry || getCollectorLocation(entry.source_id).country === selectedCountry
+                ).length} routes
+                {selectedCountry && ` in ${selectedCountry}`}
               </span>
-              {getUniqueCountries(bgpInfo.data.bgp_state).map(country => (
-                <span
-                  key={country}
-                  onClick={() => setSelectedCountry(country === selectedCountry ? null : country)}
-                  className={`cursor-pointer px-3 py-1 rounded-full text-sm transition-colors whitespace-nowrap ${
-                    country === selectedCountry 
+              <span className="text-[10px] text-gray-400">from</span>
+              <span className="bg-blue-600/30 text-blue-300 px-2 py-0.5 rounded-full text-[10px]">
+                {new Set(bgpInfo.data.bgp_state.map(entry => entry.source_id.split('-')[0])).size} collectors
+              </span>
+            </div>
+            
+            <div className="mb-2 overflow-x-auto">
+              <div className="flex items-center gap-1 pb-1 min-w-max">
+                <span className="text-gray-400 text-[10px]">Filter:</span>
+                <span 
+                  onClick={() => setSelectedCountry(null)}
+                  className={`cursor-pointer px-2 py-0.5 rounded-full text-[10px] transition-colors ${
+                    selectedCountry === null 
                       ? 'bg-blue-600 text-blue-100' 
                       : 'bg-blue-600/30 text-blue-300 hover:bg-blue-600/50'
                   }`}
                 >
-                  {country}
-                  <span className="ml-2 text-xs">
-                    ({bgpInfo.data.bgp_state.filter(entry => 
+                  All
+                </span>
+                {getUniqueCountries(bgpInfo.data.bgp_state).map(country => (
+                  <span
+                    key={country}
+                    onClick={() => setSelectedCountry(country === selectedCountry ? null : country)}
+                    className={`cursor-pointer px-2 py-0.5 rounded-full text-[10px] transition-colors ${
+                      country === selectedCountry 
+                        ? 'bg-blue-600 text-blue-100' 
+                        : 'bg-blue-600/30 text-blue-300 hover:bg-blue-600/50'
+                    }`}
+                  >
+                    {country} ({bgpInfo.data.bgp_state.filter(entry => 
                       getCollectorLocation(entry.source_id).country === country
                     ).length})
                   </span>
-                </span>
-              ))}
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 gap-4">
-            {bgpInfo.data.bgp_state
-              .filter(entry => 
-                !selectedCountry || getCollectorLocation(entry.source_id).country === selectedCountry
-              )
-              .map((entry: BGPEntry, index: number) => (
-                <div key={index} className="bg-gray-800 border border-gray-700 p-4 rounded-xl hover:border-blue-500/50 transition-colors">
-                  <div className="grid gap-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="flex items-center">
-                          <p className="text-gray-400 text-sm">Network Block</p>
-                          <InfoTooltip text="The range of IP addresses that this route covers. For example, /24 means a block of 256 IP addresses." />
-                        </div>
-                        <p className="text-blue-400 font-mono">{entry.target_prefix}</p>
-                      </div>
-                      <div className="text-right">
-                        <div className="flex items-center justify-end flex-wrap gap-1">
-                          <p className="text-gray-400 text-sm">Route Collector</p>
-                          <InfoTooltip 
-                            text="The identifier of the BGP router that observed this route. The first number identifies the collector's location, followed by the IP address of the peer router sharing the routing information." 
-                            alignRight={true}
-                          />
-                        </div>
-                        {(() => {
-                          const [collectorId, peerIp] = entry.source_id.split('-');
-                          const location = getCollectorLocation(entry.source_id);
-                          return (
-                            <div>
-                              <div className="text-sm flex items-center justify-end flex-wrap gap-2">
-                                <span className="bg-blue-600/30 px-2 py-0.5 rounded text-blue-300">
-                                  RRC{collectorId}
-                                </span>
-                                <span className="text-gray-400">•</span>
-                                <span className="text-gray-300">
-                                  {location.city}, {location.country}
-                                </span>
-                              </div>
-                              <p className="text-gray-400 text-xs font-mono mt-1 break-all">
-                                Peer IP: {peerIp}
-                              </p>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <div className="flex items-center">
-                        <p className="text-gray-400 text-sm">Network Path</p>
-                        <InfoTooltip text="The sequence of networks (Autonomous Systems) and their IP addresses that traffic passes through to reach the destination. Read from left (start) to right (destination)." />
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 mt-2 overflow-x-auto pb-2">
-                        {entry.path.map((asn, i) => (
-                          <span key={i} className="flex items-center flex-shrink-0">
-                            <span className={`px-3 py-1 rounded-lg font-mono text-sm ${
-                              i === 0 ? 'bg-green-800/50 text-green-300' :
-                              i === entry.path.length - 1 ? 'bg-purple-800/50 text-purple-300' :
-                              'bg-gray-700 text-blue-300'
-                            }`}>
-                              {getASName(asn, i, entry)}
-                            </span>
-                            {i < entry.path.length - 1 && (
-                              <span className="text-gray-500 mx-2">→</span>
-                            )}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="mt-2 text-xs text-gray-400">
-                        <span className="font-semibold">Source IP:</span> {entry.source_id.split('-')[1]} • 
-                        <span className="font-semibold ml-2">Target Prefix:</span> {entry.target_prefix}
-                      </div>
-                    </div>
+                ))}
+              </div>
 
-                    {entry.community.length > 0 && (
-                      <div>
-                        <div className="flex items-center mb-2">
-                          <p className="text-gray-400 text-sm">BGP Communities</p>
-                          <InfoTooltip text="BGP communities are tags that networks attach to routes to control how traffic is handled. They're like postal codes for internet traffic, helping networks make routing decisions." />
-                        </div>
-                        <div className="p-3 bg-gray-700/30 rounded-lg">
-                          <p className="text-sm text-gray-300 mb-3">
-                            Communities help networks communicate routing preferences and policies to each other.
-                            Each community (AS:VALUE) carries specific instructions about how to handle the route.
-                          </p>
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {entry.community.map((comm, i) => {
-                              const [asn, value] = comm.split(':');
-                              const explanation = explainCommunity(asn, value);
-                              return (
-                                <div key={i} className="group relative">
-                                  <div className="bg-gray-700/50 px-3 py-1 rounded-lg text-sm cursor-help">
-                                    <span className="text-blue-400">{asn}</span>
-                                    <span className="text-gray-400">:</span>
-                                    <span className="text-gray-300">{value}</span>
-                                  </div>
-                                  <div className="hidden group-hover:block absolute z-10 w-64 p-2 mt-2 text-sm bg-gray-700 rounded-lg shadow-lg">
-                                    <p className="text-gray-100">{explanation}</p>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
+              <div className="flex items-center gap-2 mt-2">
+                <Button
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  variant="secondary"
+                  size="sm"
+                  className="text-[10px] h-[26px]"
+                >
+                  {showAdvancedFilters ? 'Hide Advanced Filters' : 'Show Advanced Filters'}
+                </Button>
+              </div>
+
+              {showAdvancedFilters && (
+                <div className="mt-2">
+                  <AdvancedFilters
+                    filters={advancedFilters}
+                    onChange={setAdvancedFilters}
+                    onSaveFilter={(name) => {
+                      const newFilter = {
+                        id: Date.now().toString(),
+                        name,
+                        filters: { ...advancedFilters }
+                      };
+                      setAdvancedFilters(prev => ({
+                        ...prev,
+                        savedFilters: [...prev.savedFilters, newFilter]
+                      }));
+                    }}
+                    onLoadFilter={(filter) => {
+                      setAdvancedFilters({
+                        ...filter.filters,
+                        savedFilters: advancedFilters.savedFilters
+                      });
+                    }}
+                    onDeleteFilter={(id) => {
+                      setAdvancedFilters(prev => ({
+                        ...prev,
+                        savedFilters: prev.savedFilters.filter(f => f.id !== id)
+                      }));
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+            
+            <BGPResultsTable 
+              data={paginateData(
+                filterBGPEntries(
+                  bgpInfo.data.bgp_state.filter(entry => 
+                    !selectedCountry || getCollectorLocation(entry.source_id).country === selectedCountry
+                  ),
+                  advancedFilters
+                ),
+                currentPage,
+                itemsPerPage
+              )}
+              getCollectorLocation={getCollectorLocation}
+              getASName={getASName}
+            />
+
+            <Pagination className="mt-3">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    href="#" 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (currentPage > 1) setCurrentPage(currentPage - 1);
+                    }}
+                    className={`text-[10px] py-1 px-2 bg-gray-800 hover:bg-gray-700 border-gray-700 text-gray-300 hover:text-gray-100 ${
+                      currentPage === 1 ? 'pointer-events-none opacity-50' : ''
+                    }`}
+                  />
+                </PaginationItem>
+                {getPageRange(
+                  currentPage,
+                  Math.ceil(bgpInfo.data.bgp_state.filter(entry => 
+                    !selectedCountry || getCollectorLocation(entry.source_id).country === selectedCountry
+                  ).length / itemsPerPage)
+                ).map((page, i) => (
+                  <PaginationItem key={i}>
+                    {page === 'ellipsis' ? (
+                      <PaginationEllipsis className="text-gray-500" />
+                    ) : (
+                      <PaginationLink 
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setCurrentPage(page as number);
+                        }}
+                        isActive={currentPage === page}
+                        className={`text-xs ${
+                          currentPage === page
+                            ? 'bg-blue-600 text-blue-100 border-blue-500 hover:bg-blue-700'
+                            : 'bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-700 hover:text-gray-100'
+                        }`}
+                      >
+                        {page}
+                      </PaginationLink>
                     )}
-                  </div>
-                </div>
-              ))}
+                  </PaginationItem>
+                ))}
+                <PaginationItem>
+                  <PaginationNext 
+                    href="#" 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const totalPages = Math.ceil(bgpInfo.data.bgp_state.filter(entry => 
+                        !selectedCountry || getCollectorLocation(entry.source_id).country === selectedCountry
+                      ).length / itemsPerPage);
+                      if (currentPage < totalPages) {
+                        setCurrentPage(currentPage + 1);
+                      }
+                    }}
+                    className={`text-xs bg-gray-800 hover:bg-gray-700 border-gray-700 text-gray-300 hover:text-gray-100 ${
+                      currentPage >= Math.ceil(bgpInfo.data.bgp_state.length / itemsPerPage) ? 'pointer-events-none opacity-50' : ''
+                    }`}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
           </div>
-
-          <div className="mt-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
-            <h3 className="text-lg font-semibold text-blue-400 mb-2">Understanding the Results</h3>
-            <ul className="space-y-2 text-gray-300">
-              <li>• <span className="text-green-300">Green</span> shows the starting network that observed the route (with source IP)</li>
-              <li>• <span className="text-purple-300">Purple</span> shows the destination network</li>
-              <li>• IP addresses in [brackets] show the network interfaces at each hop</li>
-              <li>• The arrows (→) show the direction traffic flows between networks</li>
-              <li>• More paths generally means better redundancy and reliability</li>
-              <li>• Communities are like traffic signs that tell networks how to handle the traffic</li>
-            </ul>
+        ) : bgpInfo && !isLoading ? (
+          <div className="text-gray-400 p-2 text-xs bg-gray-800 rounded-lg border border-gray-700">
+            No BGP routes found for this IP address.
           </div>
+        ) : null}
+      </main>
 
-          <div className="mt-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
-            <h3 className="text-lg font-semibold text-blue-400 mb-2">Understanding BGP Communities</h3>
-            <div className="space-y-4 text-gray-300">
-              <p>BGP communities are like tags or labels that networks attach to routes. They serve several important purposes:</p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-3 bg-gray-700/50 rounded-lg">
-                  <h4 className="font-semibold text-blue-300 mb-2">Common Uses</h4>
-                  <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>Traffic engineering</li>
-                    <li>Route filtering</li>
-                    <li>Geographic identification</li>
-                    <li>Service level marking</li>
-                    <li>Peer type identification</li>
-                  </ul>
-                </div>
-                
-                <div className="p-3 bg-gray-700/50 rounded-lg">
-                  <h4 className="font-semibold text-blue-300 mb-2">Format Explanation</h4>
-                  <ul className="list-disc list-inside text-sm space-y-1">
-                    <li><span className="text-blue-400">ASN</span>:<span className="text-gray-300">VALUE</span></li>
-                    <li>ASN = Network assigning the community</li>
-                    <li>VALUE = Specific routing instruction</li>
-                    <li>Example: 3356:22 = Level3's peer route</li>
-                  </ul>
-                </div>
-              </div>
-
-              <p className="text-sm text-gray-400 mt-4">
-                Each network can define its own community values and their meanings. Large networks often publish their community definitions, 
-                while others may keep them private or use them internally. Communities help networks automate routing decisions and implement 
-                complex routing policies across the internet.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
-            <h3 className="text-lg font-semibold text-blue-400 mb-2">Understanding Route Collectors</h3>
-            <div className="space-y-4 text-gray-300">
-              <p>Route collectors (RRCs) are servers operated by RIPE NCC that gather BGP routing information from networks worldwide:</p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-3 bg-gray-700/50 rounded-lg">
-                  <h4 className="font-semibold text-blue-300 mb-2">Collector ID Format</h4>
-                  <p className="text-sm mb-2">Example: <code>00-192.0.2.1</code></p>
-                  <ul className="list-disc list-inside text-sm space-y-1">
-                    <li><span className="text-blue-400">00</span>: Collector ID (location)</li>
-                    <li><span className="text-gray-300">192.0.2.1</span>: Peer Router IP</li>
-                  </ul>
-                </div>
-                
-                <div className="p-3 bg-gray-700/50 rounded-lg">
-                  <h4 className="font-semibold text-blue-300 mb-2">What They Do</h4>
-                  <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>Listen to BGP updates</li>
-                    <li>Store routing information</li>
-                    <li>Provide global visibility</li>
-                    <li>Track routing changes</li>
-                  </ul>
-                </div>
-              </div>
-
-              <p className="text-sm text-gray-400 mt-4">
-                RIPE operates route collectors in many locations worldwide. Each collector receives routing information from multiple peer routers, 
-                giving us a comprehensive view of how different networks see and reach IP addresses across the internet.
-              </p>
-            </div>
-          </div>
-
-          <div className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
-            <h3 className="text-lg font-semibold text-blue-400 mb-2">Global Route Distribution</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {(() => {
-                const locations = new Map();
-                bgpInfo.data.bgp_state.forEach(entry => {
-                  const location = getCollectorLocation(entry.source_id);
-                  const key = `${location.city}, ${location.country}`;
-                  locations.set(key, (locations.get(key) || 0) + 1);
-                });
-
-                return Array.from(locations.entries()).map(([location, count]) => (
-                  <div key={location} className="flex items-center justify-between p-2 bg-gray-700/30 rounded-lg">
-                    <span className="text-gray-300">{location}</span>
-                    <span className="bg-blue-600/30 px-2 py-0.5 rounded text-blue-300 text-sm">
-                      {count} {count === 1 ? 'route' : 'routes'}
-                    </span>
-                  </div>
-                ));
-              })()}
-            </div>
-            <p className="text-sm text-gray-400 mt-4">
-              Routes are collected from RIPE RIS (Route Information Service) collectors located around the world. 
-              More diverse geographical coverage indicates better global reachability for the IP address.
-            </p>
-          </div>
-        </div>
-      ) : bgpInfo && !isLoading ? (
-        <div className="text-gray-400 p-4 bg-gray-800 rounded-lg border border-gray-700">
-          No BGP routes found for this IP address.
-        </div>
-      ) : null}
+      <Footer />
     </div>
   );
 }
