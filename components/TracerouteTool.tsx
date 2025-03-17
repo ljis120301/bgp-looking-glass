@@ -147,7 +147,7 @@ export default function TracerouteTool({ defaultEndpoint = 'bgp.whoisjason.me' }
         )}
       </div>
       <div className={`overflow-hidden transition-all duration-200 ${
-        networkResults.active ? 'h-20' : 'h-0'
+        networkResults.active ? 'h-[300px]' : 'h-0'
       }`}>
         <div className="h-full border-t border-gray-700 bg-gray-900/50">
           <pre 

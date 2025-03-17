@@ -3,6 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PingTool from '../components/PingTool';
 import TracerouteTool from '../components/TracerouteTool';
+import DigTool from '../components/dig';
+import WhoisTool from '../components/whois';
+import NmapTool from '../components/nmap';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Pagination,
@@ -450,9 +453,9 @@ export default function Home() {
           </button>
           
           <div className={`overflow-hidden transition-all duration-300 ${
-            isNetworkToolsOpen ? 'max-h-[180px] opacity-100 mt-2' : 'max-h-0 opacity-0'
+            isNetworkToolsOpen ? 'max-h-[600px] opacity-100 mt-2' : 'max-h-0 opacity-0'
           }`}>
-            <div className="bg-gray-800 rounded-lg border border-gray-700 p-0.5">
+            <div className="bg-gray-800 rounded-lg border border-gray-700 p-0.5 overflow-y-auto">
               <Tabs defaultValue="ping" className="w-full">
                 <TabsList className="bg-gray-700/50 border-0 h-7 w-full flex justify-center gap-1 p-1">
                   <TabsTrigger 
@@ -467,12 +470,39 @@ export default function Home() {
                   >
                     Traceroute
                   </TabsTrigger>
+                  <TabsTrigger 
+                    value="dig"
+                    className="data-[state=active]:bg-gray-600 data-[state=active]:text-blue-400 text-xs h-full px-6 font-medium min-w-[100px]"
+                  >
+                    Dig
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="whois"
+                    className="data-[state=active]:bg-gray-600 data-[state=active]:text-blue-400 text-xs h-full px-6 font-medium min-w-[100px]"
+                  >
+                    Whois
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="nmap"
+                    className="data-[state=active]:bg-gray-600 data-[state=active]:text-blue-400 text-xs h-full px-6 font-medium min-w-[100px]"
+                  >
+                    Nmap
+                  </TabsTrigger>
                 </TabsList>
                 <TabsContent value="ping" className="mt-0.5">
                   <PingTool ipAddress={ipAddress} />
                 </TabsContent>
                 <TabsContent value="traceroute" className="mt-0.5">
                   <TracerouteTool defaultEndpoint="bgp.whoisjason.me" />
+                </TabsContent>
+                <TabsContent value="dig" className="mt-0.5">
+                  <DigTool defaultEndpoint="bgp.whoisjason.me" />
+                </TabsContent>
+                <TabsContent value="whois" className="mt-0.5">
+                  <WhoisTool defaultEndpoint="bgp.whoisjason.me" />
+                </TabsContent>
+                <TabsContent value="nmap" className="mt-0.5">
+                  <NmapTool defaultEndpoint="bgp.whoisjason.me" />
                 </TabsContent>
               </Tabs>
             </div>
