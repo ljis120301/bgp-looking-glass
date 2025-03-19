@@ -8,25 +8,21 @@ interface NmapToolProps {
   defaultEndpoint?: string;
 }
 
+// Modified flags interface to remove privileged options
 interface NmapFlags {
   // Basic Scan Options
   pn: boolean;      // Skip host discovery
-  sS: boolean;      // SYN scan
-  sT: boolean;      // Connect scan
-  sU: boolean;      // UDP scan
+  sT: boolean;      // Connect scan (non-privileged)
   sV: boolean;      // Version detection
   sC: boolean;      // Default scripts
-  A: boolean;       // Aggressive scan
   T4: boolean;      // Aggressive timing
   v: boolean;       // Verbose output
   
   // Output Options
   oN: boolean;      // Normal output
   oX: boolean;      // XML output
-  oA: boolean;      // Output to all formats
   
   // Advanced Options
-  vuln: boolean;    // Vulnerability scan
   script: string;   // Custom script selection
   scriptArgs: string; // Script arguments
   topPorts: string; // Top ports to scan
@@ -35,25 +31,20 @@ interface NmapFlags {
   customCommand: string; // Custom command input
 }
 
-export default function NmapTool({ defaultEndpoint = "" }: NmapToolProps) {
+export default function NmapTool({ defaultEndpoint = "" }) {
   const [target, setTarget] = useState(defaultEndpoint);
   const [result, setResult] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flags, setFlags] = useState<NmapFlags>({
     pn: false,
-    sS: false,
     sT: false,
-    sU: false,
     sV: false,
     sC: false,
-    A: false,
     T4: false,
     v: false,
     oN: false,
     oX: false,
-    oA: false,
-    vuln: false,
     script: '',
     scriptArgs: '',
     topPorts: '',
@@ -61,9 +52,23 @@ export default function NmapTool({ defaultEndpoint = "" }: NmapToolProps) {
     maxScanDelay: '',
     customCommand: ''
   });
+  // Function to validate commands and remove privileged options
+  const sanitizeCommand = (cmd: string) => {
+    // List of flags that require sudo
+    const privilegedFlags = ['-sS', '-sU', '-sA', '-sW', '-sM', '-sN', '-sF', '-sX', '--privileged'];
+    
+    // Remove any privileged flags from custom commands
+    let sanitized = cmd;
+    privilegedFlags.forEach(flag => {
+      sanitized = sanitized.replace(new RegExp(flag + '\\b', 'g'), '');
+    });
+    
+    return sanitized.trim();
+  };
 
   const handleNmap = async () => {
     if (!target) {
+      setError(null);
       setError("Please enter a target host or network");
       return;
     }
@@ -75,24 +80,23 @@ export default function NmapTool({ defaultEndpoint = "" }: NmapToolProps) {
     try {
       let command = 'nmap';
       
-      // If custom command is provided, use it instead of building from flags
+      // If custom command is provided, sanitize it
       if (flags.customCommand.trim()) {
-        command = `nmap ${flags.customCommand} ${target}`;
+        const sanitized = sanitizeCommand(flags.customCommand);
+        if (sanitized !== flags.customCommand) {
+          setResult("Note: Some privileged options were removed from your command.\n\n");
+        }
+        command = `nmap ${sanitized} ${target}`;
       } else {
-        // Build command from flags
+        // Build command from flags (only non-privileged ones)
         if (flags.pn) command += ' -Pn';
-        if (flags.sS) command += ' -sS';
         if (flags.sT) command += ' -sT';
-        if (flags.sU) command += ' -sU';
         if (flags.sV) command += ' -sV';
         if (flags.sC) command += ' -sC';
-        if (flags.A) command += ' -A';
         if (flags.T4) command += ' -T4';
         if (flags.v) command += ' -v';
         if (flags.oN) command += ' -oN -';
         if (flags.oX) command += ' -oX -';
-        if (flags.oA) command += ' -oA scan';
-        if (flags.vuln) command += ' --script vuln';
         if (flags.script) command += ` --script ${flags.script}`;
         if (flags.scriptArgs) command += ` --script-args ${flags.scriptArgs}`;
         if (flags.topPorts) command += ` --top-ports ${flags.topPorts}`;
@@ -118,7 +122,7 @@ export default function NmapTool({ defaultEndpoint = "" }: NmapToolProps) {
         if (done) break;
         
         const text = new TextDecoder().decode(value);
-        setResult(prev => prev + text);
+        setResult(prev => (prev || "") + text);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -186,15 +190,7 @@ export default function NmapTool({ defaultEndpoint = "" }: NmapToolProps) {
               />
               <label htmlFor="pn" className="text-xs text-gray-300">-Pn (No ping)</label>
             </div>
-            <div className="flex items-center space-x-1">
-              <Checkbox
-                id="sS"
-                checked={flags.sS}
-                onCheckedChange={() => toggleFlag('sS')}
-                className="h-3 w-3"
-              />
-              <label htmlFor="sS" className="text-xs text-gray-300">-sS (SYN scan)</label>
-            </div>
+            
             <div className="flex items-center space-x-1">
               <Checkbox
                 id="sT"
@@ -204,15 +200,7 @@ export default function NmapTool({ defaultEndpoint = "" }: NmapToolProps) {
               />
               <label htmlFor="sT" className="text-xs text-gray-300">-sT (Connect scan)</label>
             </div>
-            <div className="flex items-center space-x-1">
-              <Checkbox
-                id="sU"
-                checked={flags.sU}
-                onCheckedChange={() => toggleFlag('sU')}
-                className="h-3 w-3"
-              />
-              <label htmlFor="sU" className="text-xs text-gray-300">-sU (UDP scan)</label>
-            </div>
+            
             <div className="flex items-center space-x-1">
               <Checkbox
                 id="sV"
@@ -222,6 +210,7 @@ export default function NmapTool({ defaultEndpoint = "" }: NmapToolProps) {
               />
               <label htmlFor="sV" className="text-xs text-gray-300">-sV (Version)</label>
             </div>
+            
             <div className="flex items-center space-x-1">
               <Checkbox
                 id="sC"
@@ -231,15 +220,7 @@ export default function NmapTool({ defaultEndpoint = "" }: NmapToolProps) {
               />
               <label htmlFor="sC" className="text-xs text-gray-300">-sC (Scripts)</label>
             </div>
-            <div className="flex items-center space-x-1">
-              <Checkbox
-                id="A"
-                checked={flags.A}
-                onCheckedChange={() => toggleFlag('A')}
-                className="h-3 w-3"
-              />
-              <label htmlFor="A" className="text-xs text-gray-300">-A (Aggressive)</label>
-            </div>
+            
             <div className="flex items-center space-x-1">
               <Checkbox
                 id="T4"
@@ -249,6 +230,7 @@ export default function NmapTool({ defaultEndpoint = "" }: NmapToolProps) {
               />
               <label htmlFor="T4" className="text-xs text-gray-300">-T4 (Fast)</label>
             </div>
+            
             <div className="flex items-center space-x-1">
               <Checkbox
                 id="v"
@@ -259,19 +241,15 @@ export default function NmapTool({ defaultEndpoint = "" }: NmapToolProps) {
               <label htmlFor="v" className="text-xs text-gray-300">-v (Verbose)</label>
             </div>
           </div>
+          
+          <div className="mt-2 text-xs text-blue-400 bg-blue-900/20 p-2 rounded">
+            <p><strong>Note:</strong> This web interface only supports non-privileged Nmap operations.</p>
+            <p className="mt-1">Some scan types (like SYN scan, UDP scan) require root privileges and are intentionally not included.</p>
+          </div>
         </TabsContent>
 
         <TabsContent value="advanced" className="mt-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <div className="flex items-center space-x-1">
-              <Checkbox
-                id="vuln"
-                checked={flags.vuln}
-                onCheckedChange={() => toggleFlag('vuln')}
-                className="h-3 w-3"
-              />
-              <label htmlFor="vuln" className="text-xs text-gray-300">--script vuln (Vulnerability scan)</label>
-            </div>
             <div className="flex items-center space-x-1">
               <Checkbox
                 id="oN"
@@ -281,6 +259,7 @@ export default function NmapTool({ defaultEndpoint = "" }: NmapToolProps) {
               />
               <label htmlFor="oN" className="text-xs text-gray-300">-oN (Normal output)</label>
             </div>
+            
             <div className="flex items-center space-x-1">
               <Checkbox
                 id="oX"
@@ -290,24 +269,17 @@ export default function NmapTool({ defaultEndpoint = "" }: NmapToolProps) {
               />
               <label htmlFor="oX" className="text-xs text-gray-300">-oX (XML output)</label>
             </div>
-            <div className="flex items-center space-x-1">
-              <Checkbox
-                id="oA"
-                checked={flags.oA}
-                onCheckedChange={() => toggleFlag('oA')}
-                className="h-3 w-3"
-              />
-              <label htmlFor="oA" className="text-xs text-gray-300">-oA (All formats)</label>
-            </div>
+            
             <div className="space-y-1">
               <Input
                 type="text"
                 value={flags.script}
                 onChange={(e) => setFlags(prev => ({ ...prev, script: e.target.value }))}
-                placeholder="Custom script (e.g., http-* or vuln)"
+                placeholder="Custom script (e.g., http-* or banner)"
                 className="text-xs h-7 bg-gray-800 border-gray-700"
               />
             </div>
+            
             <div className="space-y-1">
               <Input
                 type="text"
@@ -317,6 +289,7 @@ export default function NmapTool({ defaultEndpoint = "" }: NmapToolProps) {
                 className="text-xs h-7 bg-gray-800 border-gray-700"
               />
             </div>
+            
             <div className="space-y-1">
               <Input
                 type="text"
@@ -326,6 +299,7 @@ export default function NmapTool({ defaultEndpoint = "" }: NmapToolProps) {
                 className="text-xs h-7 bg-gray-800 border-gray-700"
               />
             </div>
+            
             <div className="space-y-1">
               <Input
                 type="text"
@@ -335,6 +309,7 @@ export default function NmapTool({ defaultEndpoint = "" }: NmapToolProps) {
                 className="text-xs h-7 bg-gray-800 border-gray-700"
               />
             </div>
+            
             <div className="space-y-1">
               <Input
                 type="text"
@@ -353,11 +328,14 @@ export default function NmapTool({ defaultEndpoint = "" }: NmapToolProps) {
               type="text"
               value={flags.customCommand}
               onChange={(e) => setFlags(prev => ({ ...prev, customCommand: e.target.value }))}
-              placeholder="Enter custom Nmap command (e.g., -sS -sV -p- -T4)"
+              placeholder="Enter custom Nmap command (e.g., -sT -sV -p- -T4)"
               className="text-xs h-7 bg-gray-800 border-gray-700"
             />
             <p className="text-xs text-gray-400">
               Note: The target will be automatically appended to your command. Do not include the target in the custom command.
+            </p>
+            <p className="text-xs text-yellow-400">
+              Warning: Privileged options (like -sS, -sU) will be automatically removed as they require root access.
             </p>
           </div>
         </TabsContent>
