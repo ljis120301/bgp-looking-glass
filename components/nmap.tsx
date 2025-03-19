@@ -36,6 +36,7 @@ export default function NmapTool({ defaultEndpoint = "" }) {
   const [result, setResult] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const resultContainerRef = React.useRef(null); // Add ref for the output container
   const [flags, setFlags] = useState<NmapFlags>({
     pn: false,
     sT: false,
@@ -87,8 +88,14 @@ export default function NmapTool({ defaultEndpoint = "" }) {
           setResult("Note: Some privileged options were removed from your command.\n\n");
         }
         command = `nmap ${sanitized} ${target}`;
+        
+        // Add stats-every parameter if not already included in custom command
+        if (!sanitized.includes('--stats-every')) {
+          command = command.replace('nmap', 'nmap --stats-every=0.5s');
+        }
       } else {
         // Build command from flags (only non-privileged ones)
+        command += ' --stats-every=0.5s'; // Add progress reporting every 0.5 seconds
         if (flags.pn) command += ' -Pn';
         if (flags.sT) command += ' -sT';
         if (flags.sV) command += ' -sV';
@@ -122,12 +129,25 @@ export default function NmapTool({ defaultEndpoint = "" }) {
         if (done) break;
         
         const text = new TextDecoder().decode(value);
-        setResult(prev => (prev || "") + text);
+        setResult(prev => {
+          const newResult = (prev || "") + text;
+          // Use setTimeout to ensure this runs after the state update and DOM render
+          setTimeout(() => scrollToBottom(), 0);
+          return newResult;
+        });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Function to scroll to the bottom of the results container
+  const scrollToBottom = () => {
+    if (resultContainerRef.current) {
+      const container = resultContainerRef.current as HTMLDivElement;
+      container.scrollTop = container.scrollHeight;
     }
   };
 
@@ -348,7 +368,10 @@ export default function NmapTool({ defaultEndpoint = "" }) {
       )}
 
       {result && (
-        <div className="h-[300px] overflow-y-auto bg-gray-800 rounded border border-gray-700">
+        <div 
+          ref={resultContainerRef} 
+          className="h-[300px] overflow-y-auto bg-gray-800 rounded border border-gray-700"
+        >
           <pre className="text-xs p-2 whitespace-pre-wrap font-mono">
             {result}
           </pre>
