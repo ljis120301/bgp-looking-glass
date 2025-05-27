@@ -12,118 +12,100 @@ services:
       - GIT_TERMINAL_PROMPT=0
       - GITHUB_REPO=https://github.com/ljis120301/bgp-looking-glass.git
     restart: unless-stopped
-    entrypoint: |
-      sh -c '
-      echo "=== BGP Looking Glass Startup Debug Log ==="
-      echo "Current working directory: $$(pwd)"
-      echo "Current user: $$(whoami)"
-      echo "Node version: $$(node --version)"
-      echo "NPM version: $$(npm --version)"
-      echo ""
-      
-      echo "[STEP 1] Installing git..."
-      apk add --no-cache git
-      if [ $$? -ne 0 ]; then
-        echo "ERROR: Failed to install git"
-        exit 1
-      fi
-      echo "Git installed successfully: $$(git --version)"
-      echo ""
-      
-      echo "[STEP 2] Preparing workspace..."
-      echo "Current directory: $$(pwd)"
-      echo "Directory contents before setup:"
-      ls -la
-      echo "Cleaning current directory..."
-      rm -rf * .[^.]* 2>/dev/null || true
-      echo "Directory contents after cleanup:"
-      ls -la
-      echo ""
-      
-      echo "[STEP 3] Cloning repository..."
-      echo "Cloning from: $$GITHUB_REPO"
-      cd /tmp
-      git clone $$GITHUB_REPO bgp-app
-      if [ $$? -ne 0 ]; then
-        echo "ERROR: Failed to clone repository"
-        exit 1
-      fi
-      echo "Repository cloned successfully to /tmp/bgp-app"
-      echo "Moving repository contents to /app..."
-      cp -r /tmp/bgp-app/* /app/
-      cp -r /tmp/bgp-app/.[^.]* /app/ 2>/dev/null || true
-      cd /app
-      echo "Repository contents in /app:"
-      ls -la
-      echo ""
-      
-      echo "[STEP 4] Checking package.json..."
-      if [ -f package.json ]; then
-        echo "package.json found:"
-        cat package.json
-      else
-        echo "ERROR: package.json not found!"
-        echo "Available files:"
-        find . -name "*.json" -o -name "package*"
-        exit 1
-      fi
-      echo ""
-      
-      echo "[STEP 5] Installing npm dependencies..."
-      npm install
-      if [ $$? -ne 0 ]; then
-        echo "ERROR: npm install failed"
-        echo "Trying with --legacy-peer-deps..."
-        npm install --legacy-peer-deps
+    entrypoint:
+      - sh
+      - -c
+      - |
+        echo "=== BGP Looking Glass Startup Log ==="
+        echo "Node version: $(node --version)"
+        echo "NPM version: $(npm --version)"
+        echo "Operating system: $(uname -a)"
+        echo ""
+        
+        echo "[STEP 1] Installing dependencies..."
+        apk add --no-cache git
+        echo "Git installed: $(git --version)"
+        echo ""
+        
+        echo "[STEP 2] Setting up workspace..."
+        rm -rf /app/* /app/.[^.]* 2>/dev/null || true
+        echo ""
+        
+        echo "[STEP 3] Cloning repository..."
+        cd /tmp
+        rm -rf bgp-app 2>/dev/null || true
+        git clone $$GITHUB_REPO bgp-app
         if [ $$? -ne 0 ]; then
-          echo "ERROR: npm install failed even with legacy peer deps"
+          echo "ERROR: Failed to clone repository"
           exit 1
         fi
-      fi
-      echo "Dependencies installed successfully"
-      echo ""
-      
-      echo "[STEP 6] Checking available npm scripts..."
-      npm run 2>&1
-      echo ""
-      
-      echo "[STEP 7] Building application if build script exists..."
-      if npm run 2>&1 | grep -q "build"; then
-        echo "Build script found, building..."
+        
+        echo "Moving repository to /app..."
+        cp -r /tmp/bgp-app/. /app/
+        cd /app
+        echo "Repository cloned successfully"
+        echo ""
+        
+        echo "[STEP 4] Verifying project structure..."
+        if [ -f package.json ]; then
+          echo "✓ package.json found"
+        else
+          echo "ERROR: package.json not found!"
+          exit 1
+        fi
+        
+        # Verify component structure
+        if [ -f components/BGPLookupTool.tsx ]; then
+          echo "✓ BGPLookupTool.tsx found in correct location"
+        else
+          echo "ERROR: BGPLookupTool.tsx not found in components/"
+          exit 1
+        fi
+        
+        # Verify required components exist
+        REQUIRED_COMPONENTS="PingTool TracerouteTool dig whois nmap"
+        for component in $$REQUIRED_COMPONENTS; do
+          if [ -f "components/$$component.tsx" ]; then
+            echo "✓ components/$$component.tsx found"
+          else
+            echo "✗ components/$$component.tsx missing"
+          fi
+        done
+        echo ""
+        
+        echo "[STEP 5] Installing npm dependencies..."
+        npm ci --production=false
+        if [ $$? -ne 0 ]; then
+          echo "ERROR: npm ci failed, trying npm install..."
+          npm install
+          if [ $$? -ne 0 ]; then
+            echo "ERROR: npm install failed"
+            exit 1
+          fi
+        fi
+        echo "Dependencies installed successfully"
+        echo ""
+        
+        echo "[STEP 6] Building application..."
         npm run build
         if [ $$? -ne 0 ]; then
           echo "ERROR: Build failed"
+          echo "Checking for common issues..."
+          
+          # Show detailed error information
+          echo "Project structure:"
+          find . -name "*.tsx" -o -name "*.ts" -o -name "*.jsx" -o -name "*.js" | grep -v node_modules | sort
+          
+          echo "Package.json dependencies:"
+          cat package.json | grep -A 20 '"dependencies"'
+          
           exit 1
         fi
         echo "Build completed successfully"
-      else
-        echo "No build script found, skipping build"
-      fi
-      echo ""
-      
-      echo "[STEP 8] Starting application..."
-      if npm run 2>&1 | grep -q "start"; then
-        echo "Start script found, starting application on port 3000..."
+        echo ""
+        
+        echo "[STEP 7] Starting application..."
         exec npm start
-      else
-        echo "No start script found, trying direct node execution..."
-        if [ -f index.js ]; then
-          echo "Found index.js, starting..."
-          exec node index.js
-        elif [ -f server.js ]; then
-          echo "Found server.js, starting..."
-          exec node server.js
-        elif [ -f app.js ]; then
-          echo "Found app.js, starting..."
-          exec node app.js
-        else
-          echo "ERROR: No start script or main file found"
-          echo "Available JS files:"
-          find . -name "*.js" | head -10
-          exit 1
-        fi
-      fi
-      '
     labels:
       icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/bgp.png
     x-casaos:

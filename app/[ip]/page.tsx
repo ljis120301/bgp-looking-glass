@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from 'next/navigation';
-import BGPLookupTool from '../components/BGPLookupTool';
+import BGPLookupTool from '@/components/BGPLookupTool';
 import Script from 'next/script';
 
 export default function IPPage() {
