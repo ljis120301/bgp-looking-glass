@@ -6,7 +6,7 @@ services:
     build:
       context: .
       args:
-        - GITHUB_REPO=https://github.com/your-username/your-repo.git
+        - GITHUB_REPO=https://github.com/ljis120301/bgp-looking-glass.git
     ports:
       - "3090:3000"
     volumes:
