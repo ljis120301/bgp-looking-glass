@@ -1,0 +1,37 @@
+version: "3.8"
+
+services:
+  your-next-app:
+    container_name: your-next-app
+    build:
+      context: .
+      args:
+        - GITHUB_REPO=https://github.com/your-username/your-repo.git
+    ports:
+      - "3090:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    labels:
+      icon: https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@main/Apps/Emby/icon.png
+    x-casaos:
+      main: your-next-app
+      store_app_id: your-next-app
+      tagline:
+        en_us: "Production Next.js app"
+      description:
+        en_us: "A reusable template for production Next.js apps with CasaOS metadata"
+      index: /
+      scheme: http
+      port_map: "3090"
+      icon: https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@main/Apps/Emby/icon.png
+      screenshot_link:
+        - https://raw.githubusercontent.com/vercel/next.js/canary/examples/blog/public/screenshot.png
+      category: Developer Tools
+      developer: your-name
+      architectures:
+        - amd64
+        - arm64

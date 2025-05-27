@@ -1,0 +1,34 @@
+{
+  "name": "BGP Looking Glass",
+  "short_name": "BGP Glass",
+  "description": "A powerful BGP Looking Glass tool that provides real-time visualization of global BGP routing information",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#1F2937",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["utilities", "networking"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Lookup IP",
+      "short_name": "Lookup",
+      "description": "Lookup BGP information for an IP address",
+      "url": "/?ip=",
+      "icons": [{ "src": "/favicon.ico", "sizes": "64x64" }]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "serviceworker": {
+    "src": "/sw.js",
+    "scope": "/",
+    "type": "module"
+  }
+} 

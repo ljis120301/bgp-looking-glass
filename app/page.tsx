@@ -28,6 +28,8 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { AdvancedFilters, BGPResultsTable } from '@/components/BGPComponents';
+import SkipNavigation from '@/components/SkipNavigation';
+import { Metadata } from 'next';
 
 // Update interface to match the bgp-state API response structure
 interface BGPEntry {
@@ -206,8 +208,12 @@ const getPageRange = (currentPage: number, totalPages: number) => {
   ];
 };
 
-export default function Home() {
-  const [ipAddress, setIpAddress] = useState('');
+interface HomeProps {
+  initialIP?: string;
+}
+
+export default function Home({ initialIP }: HomeProps) {
+  const [ipAddress, setIpAddress] = useState(initialIP || '');
   const [bgpInfo, setBgpInfo] = useState<BGPResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -216,6 +222,7 @@ export default function Home() {
   const [defaultIpAddress, setDefaultIpAddress] = useState('');
   const [isNetworkToolsOpen, setIsNetworkToolsOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [mounted, setMounted] = useState(false);
   const itemsPerPage = 15; // Number of BGP entries per page
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
@@ -226,6 +233,36 @@ export default function Home() {
     communityTags: [],
     savedFilters: []
   });
+
+  // Add useEffect for mounting state
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Add useEffect to fetch the IP when component mounts
+  useEffect(() => {
+    if (!mounted) return;
+
+    const getPublicIP = async () => {
+      try {
+        const response = await fetch('https://stat.ripe.net/data/whats-my-ip/data.json');
+        if (!response.ok) {
+          throw new Error('Failed to fetch IP');
+        }
+        const data = await response.json();
+        const ip = data.data.ip;
+        setDefaultIpAddress(ip);
+        if (!initialIP) {
+          setIpAddress(ip);
+          setInstruction('Press the Lookup button to view BGP information');
+        }
+      } catch (error) {
+        console.error('Error fetching public IP:', error);
+      }
+    };
+    
+    getPublicIP();
+  }, [mounted, initialIP]);
 
   const handleLookup = async () => {
     if (!ipAddress) {
@@ -292,35 +329,6 @@ export default function Home() {
     </div>
   );
 
-  // Add this function to fetch the public IP
-  const fetchPublicIP = async () => {
-    try {
-      const response = await fetch('https://stat.ripe.net/data/whats-my-ip/data.json');
-      if (!response.ok) {
-        throw new Error('Failed to fetch IP');
-      }
-      const data = await response.json();
-      return data.data.ip;
-    } catch (error) {
-      console.error('Error fetching public IP:', error);
-      return '';
-    }
-  };
-
-  // Add useEffect to fetch the IP when component mounts
-  useEffect(() => {
-    const getPublicIP = async () => {
-      const ip = await fetchPublicIP();
-      setDefaultIpAddress(ip);
-      setIpAddress(ip); // Set the input value
-      if (ip) {
-        setInstruction('Press the Lookup button to view BGP information');
-      }
-    };
-    
-    getPublicIP();
-  }, []); // Empty dependency array means this runs once when component mounts
-
   // Add this helper function
   const paginateData = (data: BGPEntry[], page: number, itemsPerPage: number) => {
     const startIndex = (page - 1) * itemsPerPage;
@@ -378,13 +386,32 @@ export default function Home() {
     localStorage.setItem('bgp-saved-filters', JSON.stringify(advancedFilters.savedFilters));
   }, [advancedFilters.savedFilters]);
 
+  // Add early return for server-side rendering
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex flex-col bg-gray-900 text-gray-100">
+        <Header />
+        <main className="flex-1 p-2 sm:p-4">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-800 rounded-lg mb-4"></div>
+            <div className="h-8 bg-gray-800 rounded-lg mb-4"></div>
+            <div className="h-32 bg-gray-800 rounded-lg"></div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-900 text-gray-100">
+      <SkipNavigation />
       <Header />
       
-      <main className="flex-1 p-2 sm:p-4">
+      <main id="main-content" className="flex-1 p-2 sm:p-4" role="main">
         {/* Compact Info Card */}
-        <div className="mb-2 p-2 bg-gray-800 rounded-lg border border-gray-700">
+        <div className="mb-2 p-2 bg-gray-800 rounded-lg border border-gray-700" role="complementary" aria-label="BGP Information">
+          <h2 className="sr-only">About BGP</h2>
           <p className="text-gray-300 text-xs">
             BGP (Border Gateway Protocol) is how networks on the Internet share routing information.
             This tool shows you how different networks around the world can reach a specific IP address.
@@ -393,7 +420,9 @@ export default function Home() {
 
         {/* Compact Input Section */}
         <div className="mb-3 flex flex-col sm:flex-row gap-1">
+          <label htmlFor="ip-input" className="sr-only">IP Address Input</label>
           <input
+            id="ip-input"
             type="text"
             value={ipAddress}
             onChange={(e) => setIpAddress(e.target.value)}
@@ -404,35 +433,21 @@ export default function Home() {
             }}
             placeholder={defaultIpAddress || "Enter IP address (e.g., 1.1.1.1)"}
             className="bg-gray-800 border border-gray-700 px-2 rounded-lg text-gray-100 text-[10px] w-full sm:w-64 focus:outline-none focus:ring-1 focus:ring-blue-500 h-[26px]"
+            aria-label="IP Address Input"
+            aria-describedby="ip-input-description"
           />
-          <div className="flex gap-1">
-            <Button 
-              onClick={handleLookup} 
-              disabled={isLoading}
-              variant="default"
-              size="sm"
-              className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white text-[10px] px-2 py-1 h-[26px]"
-            >
-              {isLoading ? 'Loading...' : 'BGP Lookup'}
-            </Button>
-            {defaultIpAddress && ipAddress !== defaultIpAddress && (
-              <Button
-                onClick={() => {
-                  setIpAddress(defaultIpAddress);
-                  handleLookup();
-                }}
-                variant="secondary"
-                size="sm"
-                className="flex-1 sm:flex-none gap-1 text-[10px] px-2 py-1 h-[26px]"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-                </svg>
-                <span className="hidden sm:inline">Reset to My IP</span>
-                <span className="inline sm:hidden">My IP</span>
-              </Button>
-            )}
+          <div id="ip-input-description" className="sr-only">
+            Enter an IP address to look up its BGP routing information
           </div>
+          <button
+            onClick={handleLookup}
+            disabled={isLoading}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-3 rounded-lg text-[10px] h-[26px] disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Lookup BGP Information"
+            aria-busy={isLoading}
+          >
+            {isLoading ? 'Loading...' : 'Lookup'}
+          </button>
         </div>
 
         {/* Network Tools Section - Increased height */}
