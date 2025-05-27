@@ -1,38 +1,148 @@
 version: "3.8"
 
 services:
-  your-next-app:
-    container_name: your-next-app
-    build:
-      context: .
-      args:
-        - GITHUB_REPO=https://github.com/ljis120301/bgp-looking-glass.git
+  bgp-looking-glass:
+    container_name: bgp-looking-glass
+    image: node:20-alpine
     ports:
       - "3090:3000"
-    volumes:
-      - .:/app
-      - /app/node_modules
+    working_dir: /app
     environment:
       - NODE_ENV=production
       - GIT_TERMINAL_PROMPT=0
+      - GITHUB_REPO=https://github.com/ljis120301/bgp-looking-glass.git
     restart: unless-stopped
+    entrypoint: |
+      sh -c '
+      echo "=== BGP Looking Glass Startup Debug Log ==="
+      echo "Current working directory: $$(pwd)"
+      echo "Current user: $$(whoami)"
+      echo "Node version: $$(node --version)"
+      echo "NPM version: $$(npm --version)"
+      echo ""
+      
+      echo "[STEP 1] Installing git..."
+      apk add --no-cache git
+      if [ $$? -ne 0 ]; then
+        echo "ERROR: Failed to install git"
+        exit 1
+      fi
+      echo "Git installed successfully: $$(git --version)"
+      echo ""
+      
+      echo "[STEP 2] Preparing workspace..."
+      echo "Current directory: $$(pwd)"
+      echo "Directory contents before setup:"
+      ls -la
+      echo "Cleaning current directory..."
+      rm -rf * .[^.]* 2>/dev/null || true
+      echo "Directory contents after cleanup:"
+      ls -la
+      echo ""
+      
+      echo "[STEP 3] Cloning repository..."
+      echo "Cloning from: $$GITHUB_REPO"
+      cd /tmp
+      git clone $$GITHUB_REPO bgp-app
+      if [ $$? -ne 0 ]; then
+        echo "ERROR: Failed to clone repository"
+        exit 1
+      fi
+      echo "Repository cloned successfully to /tmp/bgp-app"
+      echo "Moving repository contents to /app..."
+      cp -r /tmp/bgp-app/* /app/
+      cp -r /tmp/bgp-app/.[^.]* /app/ 2>/dev/null || true
+      cd /app
+      echo "Repository contents in /app:"
+      ls -la
+      echo ""
+      
+      echo "[STEP 4] Checking package.json..."
+      if [ -f package.json ]; then
+        echo "package.json found:"
+        cat package.json
+      else
+        echo "ERROR: package.json not found!"
+        echo "Available files:"
+        find . -name "*.json" -o -name "package*"
+        exit 1
+      fi
+      echo ""
+      
+      echo "[STEP 5] Installing npm dependencies..."
+      npm install
+      if [ $$? -ne 0 ]; then
+        echo "ERROR: npm install failed"
+        echo "Trying with --legacy-peer-deps..."
+        npm install --legacy-peer-deps
+        if [ $$? -ne 0 ]; then
+          echo "ERROR: npm install failed even with legacy peer deps"
+          exit 1
+        fi
+      fi
+      echo "Dependencies installed successfully"
+      echo ""
+      
+      echo "[STEP 6] Checking available npm scripts..."
+      npm run 2>&1
+      echo ""
+      
+      echo "[STEP 7] Building application if build script exists..."
+      if npm run 2>&1 | grep -q "build"; then
+        echo "Build script found, building..."
+        npm run build
+        if [ $$? -ne 0 ]; then
+          echo "ERROR: Build failed"
+          exit 1
+        fi
+        echo "Build completed successfully"
+      else
+        echo "No build script found, skipping build"
+      fi
+      echo ""
+      
+      echo "[STEP 8] Starting application..."
+      if npm run 2>&1 | grep -q "start"; then
+        echo "Start script found, starting application on port 3000..."
+        exec npm start
+      else
+        echo "No start script found, trying direct node execution..."
+        if [ -f index.js ]; then
+          echo "Found index.js, starting..."
+          exec node index.js
+        elif [ -f server.js ]; then
+          echo "Found server.js, starting..."
+          exec node server.js
+        elif [ -f app.js ]; then
+          echo "Found app.js, starting..."
+          exec node app.js
+        else
+          echo "ERROR: No start script or main file found"
+          echo "Available JS files:"
+          find . -name "*.js" | head -10
+          exit 1
+        fi
+      fi
+      '
     labels:
-      icon: https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@main/Apps/Emby/icon.png
+      icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/bgp.png
     x-casaos:
-      main: your-next-app
-      store_app_id: your-next-app
+      main: bgp-looking-glass
+      store_app_id: bgp-looking-glass
       tagline:
-        en_us: "Production Next.js app"
+        en_us: "BGP Looking Glass - Network Diagnostics Tool"
       description:
-        en_us: "A reusable template for production Next.js apps with CasaOS metadata"
+        en_us: "A web-based BGP looking glass tool for network diagnostics and route analysis. Automatically pulls the latest code from GitHub and runs in production mode."
       index: /
       scheme: http
       port_map: "3090"
-      icon: https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@main/Apps/Emby/icon.png
+      icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/bgp.png
       screenshot_link:
-        - https://raw.githubusercontent.com/vercel/next.js/canary/examples/blog/public/screenshot.png
-      category: Developer Tools
-      developer: your-name
+        - https://raw.githubusercontent.com/ljis120301/bgp-looking-glass/main/public/screenshot.png
+      category: Network Tools
+      developer: ljis120301
       architectures:
         - amd64
         - arm64
+      tips:
+        en_us: "The application will automatically pull the latest code from GitHub on each container restart. Access the BGP looking glass at http://your-server-ip:3090. Check container logs for detailed startup information."
