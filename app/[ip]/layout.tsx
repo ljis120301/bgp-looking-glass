@@ -1,7 +1,11 @@
 import { Metadata } from 'next';
 
-export async function generateMetadata({ params }: { params: { ip: string } }): Promise<Metadata> {
-  const ip = params.ip;
+type Props = {
+  params: Promise<{ ip: string }>;
+};
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { ip } = await params;
   
   return {
     title: `BGP Routes for ${ip} - BGP Looking Glass`,
@@ -21,7 +25,7 @@ export async function generateMetadata({ params }: { params: { ip: string } }): 
   };
 }
 
-export default function IPLayout({
+export default async function IPLayout({
   children,
 }: {
   children: React.ReactNode;

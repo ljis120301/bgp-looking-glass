@@ -14,6 +14,7 @@ services:
       - /app/node_modules
     environment:
       - NODE_ENV=production
+      - GIT_TERMINAL_PROMPT=0
     restart: unless-stopped
     labels:
       icon: https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@main/Apps/Emby/icon.png

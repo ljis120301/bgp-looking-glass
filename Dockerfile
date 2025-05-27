@@ -11,14 +11,16 @@ WORKDIR /app
 ARG GITHUB_REPO
 RUN git clone ${GITHUB_REPO} .
 
-# Install dependencies
-COPY package.json package-lock.json* ./
-RUN npm install
-
-# Build the application
-RUN npm run build
+# Create startup script
+RUN echo '#!/bin/sh\n\
+cd /app\n\
+git pull\n\
+npm install\n\
+npm run build\n\
+npm start' > /app/start.sh && \
+chmod +x /app/start.sh
 
 EXPOSE 3000
 
-# Start the production server
-CMD ["npm", "start"]
+# Use the startup script
+CMD ["/app/start.sh"]

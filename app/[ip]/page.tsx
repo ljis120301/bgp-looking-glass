@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from 'next/navigation';
-import Home from '../page';
+import BGPLookupTool from '../components/BGPLookupTool';
 import Script from 'next/script';
 
 export default function IPPage() {
@@ -34,7 +34,7 @@ export default function IPPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <Home initialIP={ip} />
+      <BGPLookupTool />
     </>
   );
 } 
