@@ -2,12 +2,8 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import PingTool from '@/components/PingTool';
-import TracerouteTool from '@/components/TracerouteTool';
-import DigTool from '@/components/dig';
 import WhoisTool from '@/components/whois';
-import NmapTool from '@/components/nmap';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Spinner } from '@/components/ui/spinner';
 import {
   Pagination,
   PaginationContent,
@@ -213,6 +209,8 @@ export default function BGPLookupTool() {
   const [instruction, setInstruction] = useState<string | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [defaultIpAddress, setDefaultIpAddress] = useState('');
+  const [userASN, setUserASN] = useState<string | null>(null);
+  const [userASName, setUserASName] = useState<string | null>(null);
   const [isNetworkToolsOpen, setIsNetworkToolsOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [mounted, setMounted] = useState(false);
@@ -232,12 +230,13 @@ export default function BGPLookupTool() {
     setMounted(true);
   }, []);
 
-  // Add useEffect to fetch the IP when component mounts
+  // Add useEffect to fetch the user's IP and ASN when component mounts
   useEffect(() => {
     if (!mounted) return;
 
-    const getPublicIP = async () => {
+    const getUserInfo = async () => {
       try {
+        // Fetch user's public IP
         const response = await fetch('https://stat.ripe.net/data/whats-my-ip/data.json');
         if (!response.ok) {
           throw new Error('Failed to fetch IP');
@@ -245,19 +244,52 @@ export default function BGPLookupTool() {
         const data = await response.json();
         const ip = data.data.ip;
         setDefaultIpAddress(ip);
+        
+        // Fetch user's ASN based on their IP
+        try {
+          const asnResponse = await fetch(`https://stat.ripe.net/data/network-info/data.json?resource=${ip}`);
+          if (asnResponse.ok) {
+            const asnData = await asnResponse.json();
+            if (asnData.data?.asns && asnData.data.asns.length > 0) {
+              const asn = asnData.data.asns[0].toString();
+              setUserASN(asn);
+              
+              // Fetch AS name/organization
+              try {
+                const asNameResponse = await fetch(`https://stat.ripe.net/data/as-overview/data.json?resource=AS${asn}`);
+                if (asNameResponse.ok) {
+                  const asNameData = await asNameResponse.json();
+                  if (asNameData.data?.holder) {
+                    setUserASName(asNameData.data.holder);
+                  }
+                }
+              } catch (nameError) {
+                console.error('Error fetching AS name:', nameError);
+              }
+            }
+          }
+        } catch (asnError) {
+          console.error('Error fetching ASN:', asnError);
+          // Non-critical error, continue without ASN
+        }
+        
         if (!initialIP) {
           setIpAddress(ip);
           setInstruction('Press the Lookup button to view BGP information');
         }
       } catch (error) {
-        console.error('Error fetching public IP:', error);
+        console.error('Error fetching user info:', error);
       }
     };
     
-    getPublicIP();
+    getUserInfo();
   }, [mounted, initialIP]);
 
-  const handleLookup = useCallback(async () => {
+  const handleLookup = useCallback(async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    
     if (!ipAddress) {
       setError('Please enter an IP address');
       setInstruction(null);
@@ -409,91 +441,87 @@ export default function BGPLookupTool() {
       <Header />
       
       <main id="main-content" className="flex-1 p-2 sm:p-4" role="main">
-        {/* Compact Info Card */}
-        <div className="mb-2 p-2 bg-gray-800 rounded-lg border border-gray-700" role="complementary" aria-label="BGP Information">
-          <h2 className="sr-only">About BGP</h2>
-          <p className="text-gray-300 text-xs">
-            BGP (Border Gateway Protocol) is how networks on the Internet share routing information.
-            This tool shows you how different networks around the world can reach a specific IP address.
-          </p>
-        </div>
-
-        {/* Compact Input Section */}
-        <div className="mb-3 flex flex-col sm:flex-row gap-1">
-          <label htmlFor="ip-input" className="sr-only">IP Address Input</label>
-          <input
-            id="ip-input"
-            type="text"
-            value={ipAddress}
-            onChange={(e) => setIpAddress(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !isLoading) {
-                handleLookup();
-              }
-            }}
-            placeholder={defaultIpAddress || "Enter IP address (e.g., 1.1.1.1)"}
-            className="bg-gray-800 border border-gray-700 px-2 rounded-lg text-gray-100 text-[10px] w-full sm:w-64 focus:outline-none focus:ring-1 focus:ring-blue-500 h-[26px]"
-            aria-label="IP Address Input"
-            aria-describedby="ip-input-description"
-          />
-          <div id="ip-input-description" className="sr-only">
-            Enter an IP address to look up its BGP routing information
+        {/* Main Lookup Card */}
+        <div className="mb-2 bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+          {/* Network Info Section */}
+          {(defaultIpAddress || userASN) && (
+            <div className="bg-gray-800/50 border-b border-gray-700 px-3 py-1.5">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                {userASN && (
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-blue-300 font-mono text-xs font-semibold">AS{userASN}</span>
+                    {userASName && (
+                      <span className="text-gray-300 text-[11px]">{userASName}</span>
+                    )}
+                  </div>
+                )}
+                {defaultIpAddress && userASN && (
+                  <span className="text-gray-600">•</span>
+                )}
+                {defaultIpAddress && (
+                  <div className="flex items-center gap-1 text-[10px] text-gray-400">
+                    <span>Your IP:</span>
+                    <span className="font-mono text-gray-300">{defaultIpAddress}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {/* Lookup Controls */}
+          <div className="p-2">
+            <form onSubmit={handleLookup}>
+              <div className="flex gap-1.5">
+                <label htmlFor="ip-input" className="sr-only">IP Address Input</label>
+                <input
+                  id="ip-input"
+                  type="text"
+                  value={ipAddress}
+                  onChange={(e) => setIpAddress(e.target.value)}
+                  placeholder="Enter IP address or prefix (e.g., 1.1.1.1)"
+                  className="flex-1 bg-gray-900 border border-gray-600 px-2.5 py-1.5 rounded text-gray-100 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                  aria-label="IP Address Input"
+                  aria-describedby="ip-input-description"
+                  autoComplete="off"
+                />
+                <div id="ip-input-description" className="sr-only">
+                  Enter an IP address to look up its BGP routing information
+                </div>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 min-w-[70px]"
+                  aria-label="Lookup BGP Information"
+                  aria-busy={isLoading}
+                >
+                  {isLoading ? (
+                    <Spinner size="sm" className="text-white" />
+                  ) : (
+                    'Lookup'
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsNetworkToolsOpen(!isNetworkToolsOpen)}
+                  className="border border-gray-600 hover:border-gray-500 hover:bg-gray-700/50 text-gray-300 hover:text-gray-200 px-3 py-1.5 rounded text-xs font-medium transition-colors whitespace-nowrap"
+                  aria-expanded={isNetworkToolsOpen}
+                  aria-controls="network-tools-panel"
+                >
+                  WHOIS
+                </button>
+              </div>
+            </form>
           </div>
-          <button
-            onClick={handleLookup}
-            disabled={isLoading}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3 rounded-lg text-[10px] h-[26px] disabled:opacity-50 disabled:cursor-not-allowed"
-            aria-label="Lookup BGP Information"
-            aria-busy={isLoading}
-          >
-            {isLoading ? 'Looking up...' : 'Lookup'}
-          </button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsNetworkToolsOpen(!isNetworkToolsOpen)}
-            className="text-blue-400 hover:text-blue-300 text-[10px] h-[26px] p-1"
-            aria-expanded={isNetworkToolsOpen}
-            aria-controls="network-tools-panel"
-          >
-            Network Tools
-          </Button>
         </div>
 
         {/* Network Tools Panel */}
-        <div className={`mb-3 transition-all duration-300 overflow-hidden ${isNetworkToolsOpen ? 'max-h-96' : 'max-h-0'}`} id="network-tools-panel">
-          <div className="bg-gray-800 rounded-lg border border-gray-700 p-2">
-            <div className="mb-2">
-              <h3 className="text-blue-400 text-xs font-semibold mb-1">Network Diagnostic Tools</h3>
-              <p className="text-gray-400 text-[10px]">Additional network analysis tools for comprehensive diagnostics</p>
+        <div className={`mb-3 transition-all duration-300 overflow-hidden ${isNetworkToolsOpen ? 'max-h-[600px]' : 'max-h-0'}`} id="network-tools-panel">
+          <div className="bg-gray-800 rounded-lg border border-gray-700">
+            <div className="p-3 border-b border-gray-700">
+              <h3 className="text-blue-400 text-sm font-semibold mb-1">WHOIS Lookup</h3>
+              <p className="text-gray-400 text-[10px]">Query domain, IP address, and AS number information from WHOIS databases</p>
             </div>
-            
-            <Tabs defaultValue="ping" className="w-full">
-              <TabsList className="grid w-full grid-cols-5 bg-gray-700 h-7">
-                <TabsTrigger value="ping" className="text-[9px] py-1 data-[state=active]:bg-blue-600 data-[state=active]:text-blue-100">Ping</TabsTrigger>
-                <TabsTrigger value="traceroute" className="text-[9px] py-1 data-[state=active]:bg-blue-600 data-[state=active]:text-blue-100">Traceroute</TabsTrigger>
-                <TabsTrigger value="dig" className="text-[9px] py-1 data-[state=active]:bg-blue-600 data-[state=active]:text-blue-100">DNS</TabsTrigger>
-                <TabsTrigger value="whois" className="text-[9px] py-1 data-[state=active]:bg-blue-600 data-[state=active]:text-blue-100">Whois</TabsTrigger>
-                <TabsTrigger value="nmap" className="text-[9px] py-1 data-[state=active]:bg-blue-600 data-[state=active]:text-blue-100">Nmap</TabsTrigger>
-              </TabsList>
-                             <div className="mt-1">
-                 <TabsContent value="ping" className="mt-0.5">
-                   <PingTool ipAddress={ipAddress || "bgp.whoisjason.me"} />
-                 </TabsContent>
-                 <TabsContent value="traceroute" className="mt-0.5">
-                   <TracerouteTool defaultEndpoint="bgp.whoisjason.me" />
-                 </TabsContent>
-                 <TabsContent value="dig" className="mt-0.5">
-                   <DigTool defaultEndpoint="bgp.whoisjason.me" />
-                 </TabsContent>
-                 <TabsContent value="whois" className="mt-0.5">
-                   <WhoisTool defaultEndpoint="bgp.whoisjason.me" />
-                 </TabsContent>
-                 <TabsContent value="nmap" className="mt-0.5">
-                   <NmapTool defaultEndpoint="bgp.whoisjason.me" />
-                 </TabsContent>
-               </div>
-            </Tabs>
+            <WhoisTool defaultEndpoint={ipAddress || defaultIpAddress} />
           </div>
         </div>
 
@@ -524,6 +552,28 @@ export default function BGPLookupTool() {
               <span className="bg-blue-600/30 text-blue-300 px-2 py-0.5 rounded-full text-[10px]">
                 {new Set(bgpInfo.data.bgp_state.map(entry => entry.source_id.split('-')[0])).size} collectors
               </span>
+            </div>
+
+            {/* Legend */}
+            <div className="mb-2 flex flex-wrap items-center gap-3 text-[10px] text-gray-500">
+              <div className="flex items-center gap-1">
+                <span className="bg-blue-600/40 text-blue-200 px-1.5 py-0.5 rounded font-mono ring-1 ring-blue-500/50 text-[9px]">
+                  Observer
+                </span>
+                <span>Peer</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded font-mono text-[9px]">
+                  Transit
+                </span>
+                <span>Intermediate</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="bg-green-700/50 text-green-200 px-1.5 py-0.5 rounded font-mono ring-1 ring-green-500/30 text-[9px]">
+                  Dest
+                </span>
+                <span>Origin</span>
+              </div>
             </div>
             
             <div className="mb-2">
@@ -604,6 +654,7 @@ export default function BGPLookupTool() {
               )}
               getCollectorLocation={getCollectorLocation}
               getASName={getASName}
+              userASN={userASN}
             />
 
             <Pagination className="mt-3">

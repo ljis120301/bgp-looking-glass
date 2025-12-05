@@ -9,9 +9,9 @@ export default function Footer() {
             target="_blank" 
             rel="noopener noreferrer"
             className="text-blue-400 hover:text-blue-300 transition-colors"
-            aria-label="Visit Jason Graham's website"
+            aria-label="Visit Jason website"
           >
-            Jason Graham
+            Jason 
           </a>
         </div>
         <nav className="flex items-center gap-2" aria-label="Footer links">

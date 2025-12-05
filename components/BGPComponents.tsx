@@ -75,6 +75,8 @@ interface BGPResultsTableProps {
   data: BGPEntry[];
   getCollectorLocation: (sourceId: string) => { city: string; country: string };
   getASName: (asn: number, index: number, entry: BGPEntry) => string;
+  userASN?: string | null;
+  
 }
 
 // Advanced Filters Component
@@ -290,66 +292,102 @@ export function AdvancedFilters({
 export function BGPResultsTable({ 
   data, 
   getCollectorLocation, 
-  getASName 
+  getASName,
+  userASN
 }: BGPResultsTableProps) {
   return (
     <div className="rounded-lg border border-gray-700 overflow-hidden">
-      <Table>
+      <div className="overflow-x-auto">
+        <Table>
         <TableHeader>
           <TableRow className="bg-gray-800">
             <TableHead className="text-gray-300 py-2 px-3 border-b border-gray-700">Network</TableHead>
-            <TableHead className="text-gray-300 py-2 px-3 border-b border-gray-700">Location</TableHead>
-            <TableHead className="text-gray-300 py-2 px-3 border-b border-gray-700">AS Path</TableHead>
+            <TableHead className="text-gray-300 py-2 px-3 border-b border-gray-700">Collector</TableHead>
+            <TableHead className="text-gray-300 py-2 px-3 border-b border-gray-700">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1">
+                <span>AS Path</span>
+                <span className="text-[9px] text-gray-500 font-normal whitespace-nowrap">(Observer → Destination)</span>
+              </div>
+            </TableHead>
+            <TableHead className="text-gray-300 py-2 px-3 border-b border-gray-700 text-center">Hops</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data.map((entry, index) => (
-            <TableRow 
-              key={index} 
-              className="bg-gray-800 hover:bg-gray-750"
-            >
-              <TableCell className="py-1.5 px-3 border-b border-gray-700">
-                <span className="text-blue-400 font-mono text-[11px]">{entry.target_prefix}</span>
-              </TableCell>
-              <TableCell className="py-1.5 px-3 border-b border-gray-700">
-                {(() => {
-                  const [collectorId, peerIp] = entry.source_id.split('-');
-                  const location = getCollectorLocation(entry.source_id);
-                  return (
-                    <div className="flex items-center gap-1">
-                      <span className="bg-blue-600/30 px-1.5 py-0.5 rounded text-[10px] text-blue-300">
-                        RRC{collectorId}
-                      </span>
-                      <span className="text-gray-400">•</span>
-                      <span className="text-gray-300 text-[10px]">
-                        {location.city}, {location.country}
-                      </span>
-                    </div>
-                  );
-                })()}
-              </TableCell>
-              <TableCell className="py-1.5 px-3 border-b border-gray-700">
-                <div className="flex items-center gap-1 min-w-max">
-                  {entry.path.map((asn, i) => (
-                    <span key={i} className="flex items-center">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-mono ${
-                        i === 0 ? 'bg-green-800/50 text-green-300' :
-                        i === entry.path.length - 1 ? 'bg-purple-800/50 text-purple-300' :
-                        'bg-gray-700 text-blue-300'
-                      }`}>
-                        {getASName(asn, i, entry)}
-                      </span>
-                      {i < entry.path.length - 1 && (
-                        <span className="text-gray-500 mx-1">→</span>
-                      )}
+          {data.map((entry, rowIndex) => {
+            // Reverse the path to show from user's perspective (observer → origin)
+            const reversedPath = [...entry.path].reverse();
+            const [collectorId, peerIp] = entry.source_id.split('-');
+            const location = getCollectorLocation(entry.source_id);
+            
+            return (
+              <TableRow 
+                key={rowIndex} 
+                className="bg-gray-800 hover:bg-gray-750 transition-colors"
+              >
+                <TableCell className="py-2 px-3 border-b border-gray-700">
+                  <span className="text-blue-400 font-mono text-[11px] font-semibold">
+                    {entry.target_prefix}
+                  </span>
+                </TableCell>
+                <TableCell className="py-2 px-3 border-b border-gray-700">
+                  <div className="flex items-center gap-1.5">
+                    <span className="bg-blue-600/30 px-1.5 py-0.5 rounded text-[10px] text-blue-300 font-medium">
+                      RRC{collectorId}
                     </span>
-                  ))}
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
+                    <span className="text-gray-400">•</span>
+                    <span className="text-gray-300 text-[10px]">
+                      {location.city}, {location.country}
+                    </span>
+                  </div>
+                </TableCell>
+                <TableCell className="py-2 px-3 border-b border-gray-700">
+                  <div className="flex items-center gap-1 min-w-max">
+                    {reversedPath.map((asn, i) => {
+                      const originalIndex = entry.path.length - 1 - i;
+                      const isUserAS = userASN && asn.toString() === userASN;
+                      const isOrigin = i === reversedPath.length - 1;
+                      const isObserver = i === 0;
+                      
+                      return (
+                        <span key={i} className="flex items-center gap-1">
+                          {/* Small inline indicator for user's AS */}
+                          {isObserver && isUserAS && (
+                            <span className="text-blue-400 text-[10px]">●</span>
+                          )}
+                          <span 
+                            className={`px-2 py-0.5 rounded text-[10px] font-mono ${
+                              isObserver ? 'bg-blue-600/40 text-blue-200 ring-1 ring-blue-500/50' :
+                              isOrigin ? 'bg-green-700/50 text-green-200 ring-1 ring-green-500/30' :
+                              'bg-gray-700 text-gray-300'
+                            }`}
+                            title={
+                              isObserver && isUserAS ? 'Your Network (Observer)' :
+                              isObserver ? 'Observer/Peer Network' :
+                              isOrigin ? 'Destination Network (Origin)' :
+                              `Transit AS (Hop ${i + 1})`
+                            }
+                          >
+                            {getASName(asn, originalIndex, entry)}
+                          </span>
+                          {i < reversedPath.length - 1 && (
+                            <span className="text-gray-500 mx-1 text-xs">→</span>
+                          )}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </TableCell>
+                <TableCell className="py-2 px-3 border-b border-gray-700 text-center">
+                  <span className="bg-gray-700/50 px-2 py-0.5 rounded text-[10px] text-gray-400 font-medium">
+                    {entry.path.length}
+                  </span>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 } 
