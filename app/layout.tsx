@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import BodyAttributes from '@/components/BodyAttributes';
 
@@ -167,6 +168,11 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+        <Script
+          src="/api/script.js"
+          data-site-id="ce60911a8d83"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
