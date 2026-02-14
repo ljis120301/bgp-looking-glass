@@ -1,8 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Script from "next/script";
+import { Suspense } from "react";
 import "./globals.css";
 import BodyAttributes from '@/components/BodyAttributes';
+import RybbitAnalytics from '@/components/RybbitAnalytics';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -170,11 +171,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
-        <Script
-          src="https://tracking.whoisjason.me/api/script.js"
-          data-site-id="ce60911a8d83"
-          strategy="afterInteractive"
-        />
+        <Suspense fallback={null}>
+          <RybbitAnalytics />
+        </Suspense>
       </body>
     </html>
   );
