@@ -147,6 +147,8 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://stat.ripe.net" />
         <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
         <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+        <link rel="preconnect" href="https://tracking.whoisjason.me" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://tracking.whoisjason.me" />
         {/* Service Worker Registration */}
         <script
           dangerouslySetInnerHTML={{
@@ -169,7 +171,7 @@ export default function RootLayout({
       >
         {children}
         <Script
-          src="/api/script.js"
+          src="https://tracking.whoisjason.me/api/script.js"
           data-site-id="ce60911a8d83"
           strategy="afterInteractive"
         />

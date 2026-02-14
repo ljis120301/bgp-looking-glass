@@ -47,18 +47,7 @@ const nextConfig: NextConfig = {
       },
     ]
   },
-  async rewrites() {
-    return [
-      {
-        source: "/api/script.js",
-        destination: "https://tracking.whoisjason.me/api/script.js",
-      },
-      {
-        source: "/api/track",
-        destination: "https://tracking.whoisjason.me/api/track",
-      },
-    ];
-  },
+
   poweredByHeader: false,
   compress: true,
   reactStrictMode: true,
