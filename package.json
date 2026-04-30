@@ -18,7 +18,7 @@
     "clsx": "^2.1.1",
     "critters": "^0.0.25",
     "lucide-react": "^0.482.0",
-    "next": "15.2.8",
+    "next": "^15.5.15",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^3.0.2",
@@ -29,8 +29,26 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.35",
+    "postcss": "^8.5.10",
     "tailwindcss": "^3.4.0",
     "typescript": "^5"
+  },
+  "overrides": {
+    "picomatch": "^2.3.2",
+    "brace-expansion": "^2.0.3",
+    "minimatch": "^9.0.7",
+    "glob": "^10.4.6",
+    "yaml": "^2.8.3",
+    "postcss": "^8.5.10"
+  },
+  "pnpm": {
+    "overrides": {
+      "picomatch": "^2.3.2",
+      "brace-expansion": "^2.0.3",
+      "minimatch": "^9.0.7",
+      "glob": "^10.4.6",
+      "yaml": "^2.8.3",
+      "postcss": "^8.5.10"
+    }
   }
 }
